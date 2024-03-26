@@ -2,6 +2,7 @@
 # MT7620A Profiles
 #
 
+include ./common-sercomm.mk
 include ./common-tp-link.mk
 
 DEVICE_VARS += DLINK_ROM_ID DLINK_FAMILY_MEMBER DLINK_FIRMWARE_SIZE DLINK_IMAGE_OFFSET
@@ -79,7 +80,6 @@ define Device/ampedwireless_b1200ex
   SOC := mt7620a
   DEVICE_VENDOR := Amped Wireless
   DEVICE_MODEL := B1200EX
-  BLOCKSIZE := 4k
   IMAGE_SIZE := 7744k
   IMAGE/sysupgrade.bin := append-kernel | append-rootfs | \
 	edimax-header -s CSYS -m RN10 -f 0x70000 -S 0x01100000 | pad-rootfs | \
@@ -125,6 +125,7 @@ define Device/asus_rt-n12p
   DEVICE_VENDOR := ASUS
   DEVICE_MODEL := RT-N11P/RT-N12+/RT-N12Eb1
   SUPPORTED_DEVICES += rt-n12p
+  DEFAULT := n
 endef
 TARGET_DEVICES += asus_rt-n12p
 
@@ -192,13 +193,13 @@ define Device/comfast_cf-wr800n
   DEVICE_VENDOR := Comfast
   DEVICE_MODEL := CF-WR800N
   SUPPORTED_DEVICES += cf-wr800n
+  DEFAULT := n
 endef
 TARGET_DEVICES += comfast_cf-wr800n
 
 define Device/dlink_dch-m225
   $(Device/seama)
   SOC := mt7620a
-  BLOCKSIZE := 4k
   SEAMA_SIGNATURE := wapn22_dlink.2013gui_dap1320b
   IMAGE_SIZE := 6848k
   DEVICE_VENDOR := D-Link
@@ -223,6 +224,19 @@ define Device/dlink_dir-510l
 endef
 TARGET_DEVICES += dlink_dir-510l
 
+define Device/dlink_dir-806a-b1
+  SOC := mt7620a
+  IMAGE_SIZE := 7872k
+  DEVICE_VENDOR := D-Link
+  DEVICE_MODEL := DIR-806A
+  DEVICE_VARIANT := B1
+  DEVICE_PACKAGES += kmod-mt76x0e
+  IMAGES += factory.bin
+  IMAGE/factory.bin := append-kernel | append-rootfs | pad-rootfs | check-size | \
+	sign-dlink-ru cef285a2e29e40b2baab31277d44298b
+endef
+TARGET_DEVICES += dlink_dir-806a-b1
+
 define Device/dlink_dir-810l
   SOC := mt7620a
   DEVICE_PACKAGES := kmod-mt76x0e
@@ -243,6 +257,7 @@ define Device/dlink_dwr-116-a1
   DLINK_ROM_ID := DLK6E3803001
   DLINK_FAMILY_MEMBER := 0x6E38
   DLINK_FIRMWARE_SIZE := 0x7E0000
+  DEFAULT := n
 endef
 TARGET_DEVICES += dlink_dwr-116-a1
 
@@ -379,12 +394,27 @@ define Device/dovado_tiny-ac
 endef
 TARGET_DEVICES += dovado_tiny-ac
 
+define Device/edimax_br-6208ac-v2
+  SOC := mt7620a
+  DEVICE_VENDOR := Edimax
+  DEVICE_MODEL := BR-6208AC
+  DEVICE_VARIANT := V2
+  BLOCKSIZE := 64k
+  IMAGE_SIZE := 7744k
+  IMAGE/sysupgrade.bin := append-kernel | append-rootfs | \
+	edimax-header -s CSYS -m RN71 -f 0x70000 -S 0x01100000 | pad-rootfs | \
+	check-size | append-metadata
+  DEVICE_PACKAGES := kmod-mt76x2 kmod-mt76x0e kmod-phy-realtek \
+	kmod-usb2 kmod-usb-ohci kmod-usb-ledtrig-usbport \
+	uboot-envtools
+endef
+TARGET_DEVICES += edimax_br-6208ac-v2
+
 define Device/edimax_br-6478ac-v2
   SOC := mt7620a
   DEVICE_VENDOR := Edimax
   DEVICE_MODEL := BR-6478AC
   DEVICE_VARIANT := V2
-  BLOCKSIZE := 64k
   IMAGE_SIZE := 7744k
   IMAGE/sysupgrade.bin := append-kernel | append-rootfs | \
 	edimax-header -s CSYS -m RN68 -f 0x70000 -S 0x01100000 | pad-rootfs | \
@@ -398,7 +428,6 @@ define Device/edimax_ew-7476rpc
   SOC := mt7620a
   DEVICE_VENDOR := Edimax
   DEVICE_MODEL := EW-7476RPC
-  BLOCKSIZE := 4k
   IMAGE_SIZE := 7744k
   IMAGE/sysupgrade.bin := append-kernel | append-rootfs | \
 	edimax-header -s CSYS -m RN79 -f 0x70000 -S 0x01100000 | pad-rootfs | \
@@ -411,7 +440,6 @@ define Device/edimax_ew-7478ac
   SOC := mt7620a
   DEVICE_VENDOR := Edimax
   DEVICE_MODEL := EW-7478AC
-  BLOCKSIZE := 4k
   IMAGE_SIZE := 7744k
   IMAGE/sysupgrade.bin := append-kernel | append-rootfs | \
 	edimax-header -s CSYS -m RN70 -f 0x70000 -S 0x01100000 | pad-rootfs | \
@@ -424,7 +452,6 @@ define Device/edimax_ew-7478apc
   SOC := mt7620a
   DEVICE_VENDOR := Edimax
   DEVICE_MODEL := EW-7478APC
-  BLOCKSIZE := 4k
   IMAGE_SIZE := 7744k
   IMAGE/sysupgrade.bin := append-kernel | append-rootfs | \
 	edimax-header -s CSYS -m RN75 -f 0x70000 -S 0x01100000 | pad-rootfs | \
@@ -446,9 +473,22 @@ define Device/elecom_wrh-300cr
 endef
 TARGET_DEVICES += elecom_wrh-300cr
 
+define Device/engenius_epg600
+  $(Device/uimage-lzma-loader)
+  SOC := mt7620a
+  IMAGE_SIZE := 15616k
+  IMAGES += factory.dlf
+  IMAGE/factory.dlf := $$(sysupgrade_bin) | check-size | \
+	senao-header -r 0x101 -p 0x6a -t 2
+  DEVICE_VENDOR := EnGenius
+  DEVICE_MODEL := EPG600
+  DEVICE_PACKAGES += kmod-rt2800-pci kmod-usb-storage \
+	kmod-usb-ohci kmod-usb2 uboot-envtools
+endef
+TARGET_DEVICES += engenius_epg600
+
 define Device/engenius_esr600
   SOC := mt7620a
-  BLOCKSIZE := 64k
   IMAGE_SIZE := 15616k
   IMAGES += factory.dlf
   IMAGE/factory.dlf := $$(sysupgrade_bin) | check-size | \
@@ -539,7 +579,7 @@ define Device/hiwifi_hc5861
   DEVICE_VENDOR := HiWiFi
   DEVICE_MODEL := HC5861
   DEVICE_PACKAGES := kmod-mt76x2 kmod-usb2 kmod-usb-ohci kmod-sdhci-mt7620 \
-	kmod-usb-ledtrig-usbport
+	kmod-phy-realtek kmod-usb-ledtrig-usbport
   SUPPORTED_DEVICES += hc5861
 endef
 TARGET_DEVICES += hiwifi_hc5861
@@ -582,6 +622,8 @@ define Device/sunvalley_filehub_common
   IMAGES += kernel.bin rootfs.bin
   IMAGE/kernel.bin := append-loader-okli $(1) | check-size 64k
   IMAGE/rootfs.bin := $$(sysupgrade_bin) | check-size
+  IMAGE/sysupgrade.bin := append-kernel | append-rootfs | pad-rootfs | \
+       check-size 7744k | append-metadata
 endef
 
 define Device/hootoo_ht-tm05
@@ -745,7 +787,6 @@ TARGET_DEVICES += microduino_microwrt
 define Device/netcore_nw5212
   SOC := mt7620a
   IMAGE_SIZE := 16064k
-  BLOCKSIZE := 4k
   DEVICE_VENDOR := Netcore
   DEVICE_MODEL := NW5212
   DEVICE_PACKAGES := kmod-usb2 kmod-usb-ohci
@@ -756,7 +797,6 @@ define Device/netgear_ex2700
   SOC := mt7620a
   NETGEAR_HW_ID := 29764623+4+0+32+2x2+0
   NETGEAR_BOARD_ID := EX2700
-  BLOCKSIZE := 4k
   IMAGE_SIZE := 3776k
   IMAGES += factory.bin
   KERNEL := $(KERNEL_DTB) | uImage lzma | pad-offset 64k 64 | \
@@ -772,7 +812,6 @@ TARGET_DEVICES += netgear_ex2700
 define Device/netgear_ex3700
   SOC := mt7620a
   NETGEAR_BOARD_ID := U12H319T00_NETGEAR
-  BLOCKSIZE := 4k
   IMAGE_SIZE := 7744k
   IMAGES += factory.chk
   IMAGE/factory.chk := $$(sysupgrade_bin) | check-size | netgear-chk
@@ -786,7 +825,6 @@ TARGET_DEVICES += netgear_ex3700
 define Device/netgear_ex6120
   SOC := mt7620a
   NETGEAR_BOARD_ID := U12H319T30_NETGEAR
-  BLOCKSIZE := 4k
   IMAGE_SIZE := 7744k
   IMAGES += factory.chk
   IMAGE/factory.chk := $$(sysupgrade_bin) | check-size | netgear-chk
@@ -799,7 +837,6 @@ TARGET_DEVICES += netgear_ex6120
 define Device/netgear_ex6130
   SOC := mt7620a
   NETGEAR_BOARD_ID := U12H319T50_NETGEAR
-  BLOCKSIZE := 4k
   IMAGE_SIZE := 7744k
   IMAGES += factory.chk
   IMAGE/factory.chk := $$(sysupgrade_bin) | check-size | netgear-chk
@@ -812,7 +849,6 @@ TARGET_DEVICES += netgear_ex6130
 define Device/netgear_jwnr2010-v5
   $(Device/netgear_sercomm_nor)
   SOC := mt7620n
-  BLOCKSIZE := 4k
   IMAGE_SIZE := 3840k
   DEVICE_MODEL := JWNR2010
   DEVICE_VARIANT := v5
@@ -828,7 +864,6 @@ TARGET_DEVICES += netgear_jwnr2010-v5
 define Device/netgear_pr2000
   $(Device/netgear_sercomm_nor)
   SOC := mt7620n
-  BLOCKSIZE := 4k
   IMAGE_SIZE := 15488k
   DEVICE_MODEL := PR2000
   DEVICE_PACKAGES := kmod-usb2 kmod-usb-ohci
@@ -845,7 +880,6 @@ define Device/netgear_wn3000rp-v3
   IMAGE_SIZE := 7872k
   NETGEAR_HW_ID := 29764836+8+0+32+2x2+0
   NETGEAR_BOARD_ID := WN3000RPv3
-  BLOCKSIZE := 4k
   IMAGES += factory.bin
   KERNEL := $(KERNEL_DTB) | uImage lzma | pad-offset 64k 64 | \
 	append-uImage-fakehdr filesystem
@@ -854,6 +888,7 @@ define Device/netgear_wn3000rp-v3
   DEVICE_MODEL := WN3000RP
   DEVICE_VARIANT := v3
   SUPPORTED_DEVICES += wn3000rpv3
+  DEFAULT := n
 endef
 TARGET_DEVICES += netgear_wn3000rp-v3
 
@@ -862,7 +897,6 @@ define Device/netgear_wn3100rp-v2
   IMAGE_SIZE := 7872k
   NETGEAR_HW_ID := 29764883+8+0+32+2x2+0
   NETGEAR_BOARD_ID := WN3100RPv2
-  BLOCKSIZE := 4k
   IMAGES += factory.bin
   KERNEL := $(KERNEL_DTB) | uImage lzma | pad-offset 64k 64 | \
 	append-uImage-fakehdr filesystem
@@ -886,7 +920,6 @@ TARGET_DEVICES += netis_wf2770
 
 define Device/nexx_wt3020-4m
   SOC := mt7620n
-  BLOCKSIZE := 4k
   IMAGE_SIZE := 3776k
   IMAGES += factory.bin
   IMAGE/factory.bin := $$(sysupgrade_bin) | check-size | \
@@ -1070,6 +1103,27 @@ define Device/ravpower_rp-wd03
 endef
 TARGET_DEVICES += ravpower_rp-wd03
 
+define Device/rostelecom_rt-fl-1
+  $(Device/sercomm_cpj)
+  DEVICE_MODEL := RT-FL-1
+  DEVICE_ALT0_MODEL := RT-FL-1
+  ARTIFACT/initramfs-factory.img := \
+	append-image-stage initramfs-kernel.bin | check-size | \
+	sercomm-factory-cpj | gzip | sercomm-payload | \
+	sercomm-pid-setbit 0x11 | sercomm-crypto
+endef
+TARGET_DEVICES += rostelecom_rt-fl-1
+
+define Device/rostelecom_s1010
+  $(Device/sercomm_cpj)
+  DEVICE_MODEL := S1010
+  DEVICE_ALT0_MODEL := S1010.RT
+  ARTIFACT/initramfs-factory.img := \
+	append-image-stage initramfs-kernel.bin | check-size | \
+	sercomm-factory-cpj | gzip | sercomm-payload | sercomm-crypto
+endef
+TARGET_DEVICES += rostelecom_s1010
+
 define Device/sanlinking_d240
   SOC := mt7620a
   IMAGE_SIZE := 16064k
@@ -1092,7 +1146,6 @@ TARGET_DEVICES += sercomm_na930
 
 define Device/sitecom_wlr-4100-v1-002
   SOC := mt7620a
-  BLOCKSIZE := 4k
   IMAGE_SIZE := 7744k
   IMAGES += factory.dlf
   IMAGE/factory.dlf := $$(sysupgrade_bin) | check-size | \
@@ -1160,6 +1213,23 @@ define Device/tplink_archer-c2-v1
 	kmod-usb-ledtrig-usbport kmod-switch-rtl8366-smi kmod-switch-rtl8367b
 endef
 TARGET_DEVICES += tplink_archer-c2-v1
+
+define Device/tplink_archer-c5-v4
+  $(Device/tplink-v2)
+  SOC := mt7620a
+  IMAGE_SIZE := 7808k
+  TPLINK_FLASHLAYOUT := 8Mmtk
+  TPLINK_HWID := 0x04da857c
+  TPLINK_HWREV := 0x0c000600
+  TPLINK_HWREVADD := 0x04000000
+  IMAGES += tftp-recovery.bin
+  IMAGE/tftp-recovery.bin := pad-extra 128k | $$(IMAGE/factory.bin)
+  DEVICE_MODEL := Archer C5
+  DEVICE_VARIANT := v4
+  DEVICE_PACKAGES := kmod-usb2 kmod-usb-ohci kmod-usb-ledtrig-usbport \
+	kmod-mt76x2 kmod-switch-rtl8367b
+endef
+TARGET_DEVICES += tplink_archer-c5-v4
 
 define Device/tplink_archer-c50-v1
   $(Device/tplink-v2)
@@ -1229,7 +1299,6 @@ TARGET_DEVICES += trendnet_tew-810dr
 define Device/vonets_var11n-300
   SOC := mt7620n
   IMAGE_SIZE := 3776k
-  BLOCKSIZE := 4k
   DEVICE_VENDOR := Vonets
   DEVICE_MODEL := VAR11N-300
   DEFAULT := n
@@ -1443,6 +1512,7 @@ define Device/zbtlink_zbt-wr8305rt
   DEVICE_MODEL := ZBT-WR8305RT
   DEVICE_PACKAGES := kmod-usb2 kmod-usb-ohci
   SUPPORTED_DEVICES += zbt-wr8305rt
+  DEFAULT := n
 endef
 TARGET_DEVICES += zbtlink_zbt-wr8305rt
 
@@ -1455,6 +1525,18 @@ define Device/zte_q7
   SUPPORTED_DEVICES += zte-q7
 endef
 TARGET_DEVICES += zte_q7
+
+define Device/zyxel_keenetic-lite-iii-a
+  SOC := mt7620n
+  IMAGE_SIZE := 7872k
+  DEVICE_VENDOR := ZyXEL
+  DEVICE_MODEL := Keenetic Lite III
+  DEVICE_VARIANT := A
+  IMAGES += factory.bin
+  IMAGE/factory.bin := $$(sysupgrade_bin) | pad-to 64k | check-size | \
+		zyimage -d 2102018 -v "ZyXEL Keenetic Lite III"
+endef
+TARGET_DEVICES += zyxel_keenetic-lite-iii-a
 
 define Device/zyxel_keenetic-omni
   SOC := mt7620n

@@ -14,10 +14,12 @@ PKG_SOURCE_URL=$(PROJECT_GIT)/project/ustp.git
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_DATE:=2021-09-21
 PKG_SOURCE_VERSION:=462b3a491347e452c15220861949b1d6371fa59e
-PKG_MIRROR_HASH:=0e96edc983cf437b95874e5715d743f30bb826d8757dc3771ff872ab9cf18f35
+PKG_MIRROR_HASH:=b1d4e96f4855580d20572f930764cb09986339017c2a0ec26b22ce11d511c14f
 
 PKG_MAINTAINER:=Felix Fietkau <nbd@nbd.name>
 PKG_LICENSE:=GPL-2.0
+
+PKG_BUILD_FLAGS:=lto
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/cmake.mk
@@ -29,8 +31,7 @@ define Package/ustp
   DEPENDS:=+libubox +libubus
 endef
 
-TARGET_CFLAGS += -I$(STAGING_DIR)/usr/include -flto
-TARGET_LDFLAGS += -flto -fuse-linker-plugin
+TARGET_CFLAGS += -I$(STAGING_DIR)/usr/include
 
 define Package/ustp/install
 	$(INSTALL_DIR) $(1)/sbin $(1)/etc/init.d

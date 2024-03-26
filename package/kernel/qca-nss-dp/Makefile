@@ -1,13 +1,13 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=qca-nss-dp
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 
 PKG_SOURCE_URL:=https://git.codelinaro.org/clo/qsdk/oss/lklm/nss-dp.git
 PKG_SOURCE_PROTO:=git
-PKG_SOURCE_DATE:=2022-04-30
-PKG_SOURCE_VERSION:=72e9ec4187414461cbcf6ccff100e8b5ebe5f40b
-PKG_MIRROR_HASH:=805f16e59c75511132922f97740ebf6bf953845b0bbfd2089c4615456893bb37
+PKG_SOURCE_DATE:=2023-06-06
+PKG_SOURCE_VERSION:=fa67464466f69f00967cc373d1bdd6025f57eb89
+PKG_MIRROR_HASH:=48a3c3c6af426bf8a14dc4c2c68c4af70117acf31269024792b3a455181b7d31
 
 PKG_BUILD_PARALLEL:=1
 PKG_FLAGS:=nonshared
@@ -19,7 +19,7 @@ define KernelPackage/qca-nss-dp
   SECTION:=kernel
   CATEGORY:=Kernel modules
   SUBMENU:=Network Devices
-  DEPENDS:=@TARGET_ipq807x +kmod-qca-ssdk
+  DEPENDS:=@TARGET_qualcommax +kmod-qca-ssdk
   TITLE:=Qualcom NSS dataplane ethernet driver
   FILES:=$(PKG_BUILD_DIR)/qca-nss-dp.ko
   AUTOLOAD:=$(call AutoLoad,31,qca-nss-dp,1)
@@ -39,18 +39,15 @@ EXTRA_CFLAGS+= \
 
 NSS_DP_HAL_DIR:=$(PKG_BUILD_DIR)/hal
 define Build/Configure
-	$(LN) $(NSS_DP_HAL_DIR)/soc_ops/$(CONFIG_TARGET_BOARD)/nss_$(CONFIG_TARGET_BOARD).h \
+	$(LN) $(NSS_DP_HAL_DIR)/soc_ops/$(CONFIG_TARGET_SUBTARGET)/nss_$(CONFIG_TARGET_SUBTARGET).h \
 		$(PKG_BUILD_DIR)/exports/nss_dp_arch.h
 endef
 
 define Build/Compile
-	+$(MAKE) -C "$(LINUX_DIR)" \
-		CROSS_COMPILE="$(TARGET_CROSS)" \
-		ARCH="$(LINUX_KARCH)" \
+	+$(KERNEL_MAKE) $(PKG_JOBS) \
+		-C "$(LINUX_DIR)" \
 		M="$(PKG_BUILD_DIR)" \
-		EXTRA_CFLAGS="$(EXTRA_CFLAGS)" SoC="$(CONFIG_TARGET_BOARD)" \
-		$(KERNEL_MAKE_FLAGS) \
-		$(PKG_JOBS) \
+		EXTRA_CFLAGS="$(EXTRA_CFLAGS)" SoC="$(CONFIG_TARGET_SUBTARGET)" \
 		modules
 endef
 

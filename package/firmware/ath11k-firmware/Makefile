@@ -8,13 +8,13 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=ath11k-firmware
-PKG_SOURCE_DATE:=2022-12-14
-PKG_SOURCE_VERSION:=ab1229f94591ec4ffb16410e359b7f618be75a33
-PKG_MIRROR_HASH:=48a2526971e56a3be1c80b72cd82b9932c196b4ab9b7d5dc35117f0548a8fe57
-PKG_RELEASE:=1
+PKG_SOURCE_DATE:=2024-03-14
+PKG_SOURCE_VERSION:=795809c7041582bd51bdfaa1f548b916ae8d4382
+PKG_MIRROR_HASH:=5018bbfed6da372b9f2ab9b152d3dfd09718713310d83232a699545b53c84b2e
+PKG_RELEASE:=2
 
 PKG_SOURCE_PROTO:=git
-PKG_SOURCE_URL:=https://github.com/kvalo/ath11k-firmware.git
+PKG_SOURCE_URL:=https://github.com/quic/upstream-wifi-fw.git
 
 PKG_LICENSE_FILES:=LICENSE.qca_firmware
 
@@ -32,6 +32,11 @@ define Package/ath11k-firmware-default
   DEPENDS:=
 endef
 
+define Package/ath11k-firmware-ipq6018
+$(Package/ath11k-firmware-default)
+  TITLE:=IPQ6018 ath11k firmware
+endef
+
 define Package/ath11k-firmware-ipq8074
 $(Package/ath11k-firmware-default)
   TITLE:=IPQ8074 ath11k firmware
@@ -46,21 +51,40 @@ define Build/Compile
 
 endef
 
+QCN9074_BOARD_REV:=8e140c65f36137714b6d8934e09dcd73cb05c2f6
+QCN9074_BOARD_FILE:=board-2.bin.$(QCN9074_BOARD_REV)
+
+define Download/qcn9074-board
+  URL:=https://git.codelinaro.org/clo/ath-firmware/ath11k-firmware/-/raw/main/QCN9074/hw1.0/
+  URL_FILE:=board-2.bin
+  FILE:=$(QCN9074_BOARD_FILE)
+  HASH:=dbf0ca14aa1229eccd48f26f1026901b9718b143bd30b51b8ea67c84ba6207f1
+endef
+$(eval $(call Download,qcn9074-board))
+
+define Package/ath11k-firmware-ipq6018/install
+	$(INSTALL_DIR) $(1)/lib/firmware/IPQ6018
+	$(INSTALL_DATA) \
+		$(PKG_BUILD_DIR)/ath11k-firmware/IPQ6018/hw1.0/2.5.0.1/WLAN.HK.2.5.0.1-03982-QCAHKSWPL_SILICONZ-3/* \
+		$(1)/lib/firmware/IPQ6018/
+endef
+
 define Package/ath11k-firmware-ipq8074/install
 	$(INSTALL_DIR) $(1)/lib/firmware/IPQ8074
 	$(INSTALL_DATA) \
-		$(PKG_BUILD_DIR)/IPQ8074/hw2.0/2.5.0.1/WLAN.HK.2.5.0.1-01208-QCAHKSWPL_SILICONZ-1/* \
+		$(PKG_BUILD_DIR)/ath11k-firmware/IPQ8074/hw2.0/2.9.0.1/WLAN.HK.2.9.0.1-01977-QCAHKSWPL_SILICONZ-1/* \
 		$(1)/lib/firmware/IPQ8074/
 endef
 
 define Package/ath11k-firmware-qcn9074/install
 	$(INSTALL_DIR) $(1)/lib/firmware/ath11k/QCN9074/hw1.0
 	$(INSTALL_DATA) \
-		$(PKG_BUILD_DIR)/QCN9074/hw1.0/2.5.0.1/WLAN.HK.2.5.0.1-01208-QCAHKSWPL_SILICONZ-1/* \
+		$(PKG_BUILD_DIR)/ath11k-firmware/QCN9074/hw1.0/2.9.0.1/WLAN.HK.2.9.0.1-01977-QCAHKSWPL_SILICONZ-1/* \
 		$(1)/lib/firmware/ath11k/QCN9074/hw1.0/
 	$(INSTALL_BIN) \
-		$(PKG_BUILD_DIR)/QCN9074/hw1.0/board-2.bin $(1)/lib/firmware/ath11k/QCN9074/hw1.0/board-2.bin
+		$(DL_DIR)/$(QCN9074_BOARD_FILE) $(1)/lib/firmware/ath11k/QCN9074/hw1.0/board-2.bin
 endef
 
+$(eval $(call BuildPackage,ath11k-firmware-ipq6018))
 $(eval $(call BuildPackage,ath11k-firmware-ipq8074))
 $(eval $(call BuildPackage,ath11k-firmware-qcn9074))

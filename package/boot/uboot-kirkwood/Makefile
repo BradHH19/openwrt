@@ -8,7 +8,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_VERSION:=2020.04
-PKG_RELEASE:=$(AUTORELEASE)
+PKG_RELEASE:=9
 
 PKG_HASH:=fe732aaf037d9cc3c0909bad8362af366ae964bbdac6913a34081ff4ad565372
 
@@ -65,6 +65,11 @@ define U-Boot/nas220
   BUILD_DEVICES:=seagate_blackarmor-nas220
 endef
 
+define U-Boot/netgear_ms2110
+  NAME:=Netgear Stora (MS2000/2110)
+  BUILD_DEVICES:=netgear_stora
+endef
+
 define U-Boot/nsa310
   NAME:=Zyxel NSA310
   BUILD_DEVICES:=zyxel_nsa310b
@@ -107,6 +112,7 @@ UBOOT_TARGETS := \
 	iconnect iconnect_second_stage \
 	l-50 \
 	nas220 \
+	netgear_ms2110 \
 	nsa310 \
 	nsa310s \
 	nsa325 \

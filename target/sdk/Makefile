@@ -29,11 +29,9 @@ EXCLUDE_DIRS:= \
 	*/man \
 	*/info \
 	*/root-* \
-	initial \
 	*.install.clean \
 	*.install.flags \
 	*.install \
-	*/doc \
 	*/share/locale
 
 SDK_DIRS = \
@@ -88,9 +86,12 @@ KERNEL_FILES := $(patsubst $(TOPDIR)/%,%,$(wildcard $(addprefix $(LINUX_DIR)/,$(
 #
 USERSPACE_UTILS_FILES := \
 	tools/build \
+	tools/leds \
+	tools/power/cpupower \
 	tools/scripts \
-	tools/usb/usbip \
-	tools/spi
+	tools/spi \
+	tools/thermal/tmon \
+	tools/usb/usbip
 
 USERSPACE_FILES := $(patsubst $(TOPDIR)/%,%,$(wildcard $(addprefix $(LINUX_DIR)/,$(USERSPACE_UTILS_FILES))))
 
@@ -147,7 +148,7 @@ $(BIN_DIR)/$(SDK_NAME).tar.xz: clean
 		./files/Config.in \
 		./files/Makefile \
 		./files/include/prepare.mk \
-		./files/README.SDK \
+		./files/README.md \
 		$(SDK_BUILD_DIR)/
 	mkdir -p $(SDK_BUILD_DIR)/package/kernel
 	$(CP) \
@@ -159,6 +160,8 @@ $(BIN_DIR)/$(SDK_NAME).tar.xz: clean
 		$(SDK_BUILD_DIR)/package/kernel/
 
 	-rm -rf $(SDK_BUILD_DIR)/$(STAGING_SUBDIR_HOST)/.prereq-build
+	-rm -rf $(SDK_BUILD_DIR)/$(STAGING_SUBDIR_HOST)/doc
+	-rm -rf $(SDK_BUILD_DIR)/$(STAGING_SUBDIR_HOST)/share/doc
 
 	-rm -f $(SDK_BUILD_DIR)/feeds.conf.default
 	$(if $(BASE_FEED),echo "$(BASE_FEED)" > $(SDK_BUILD_DIR)/feeds.conf.default)

@@ -127,7 +127,13 @@ define Package/brcmfmac-nvram-43455-sdio/install
 		$(1)/lib/firmware/brcm/brcmfmac43455-sdio.Raspberry\ Pi\ Foundation-Raspberry\ Pi\ 4\ Model\ B.txt
 	$(LN) \
 		brcmfmac43455-sdio.raspberrypi,4-model-b.txt \
+		$(1)/lib/firmware/brcm/brcmfmac43455-sdio.raspberrypi,5-model-b.txt
+	$(LN) \
+		brcmfmac43455-sdio.raspberrypi,4-model-b.txt \
 		$(1)/lib/firmware/brcm/brcmfmac43455-sdio.Raspberry\ Pi\ Foundation-Raspberry\ Pi\ Compute\ Module\ 4.txt
+	$(LN) \
+		brcmfmac43455-sdio.raspberrypi,4-model-b.txt \
+		$(1)/lib/firmware/brcm/brcmfmac43455-sdio.Raspberry\ Pi\ Foundation-Raspberry\ Pi\ 5\ Model\ B.txt
 	$(INSTALL_DATA) \
 		$(PKG_BUILD_DIR)/brcm/brcmfmac43455-sdio.MINIX-NEO\ Z83-4.txt \
 		$(1)/lib/firmware/brcm/
@@ -148,6 +154,18 @@ define Package/brcmfmac-nvram-43455-sdio/install
 		$(1)/lib/firmware/brcm/brcmfmac43455-sdio.pine64,quartz64-b.txt
 endef
 $(eval $(call BuildPackage,brcmfmac-nvram-43455-sdio))
+
+Package/brcmfmac-nvram-4356-sdio = $(call Package/firmware-default,Broadcom BCM4356 SDIO NVRAM)
+define Package/brcmfmac-nvram-4356-sdio/install
+	$(INSTALL_DIR) $(1)/lib/firmware/brcm
+	$(INSTALL_DATA) \
+		$(PKG_BUILD_DIR)/brcm/brcmfmac4356-sdio.AP6356S.txt \
+		$(1)/lib/firmware/brcm/
+	$(LN) \
+		brcmfmac4356-sdio.AP6356S.txt \
+		$(1)/lib/firmware/brcm/brcmfmac4356-sdio.friendlyarm,nanopc-t4.txt
+endef
+$(eval $(call BuildPackage,brcmfmac-nvram-4356-sdio))
 
 Package/brcmfmac-firmware-usb = $(call Package/firmware-default,Broadcom BCM43xx fullmac USB firmware)
 define Package/brcmfmac-firmware-usb/install

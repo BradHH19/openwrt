@@ -6,6 +6,8 @@
 #include <net/nexthop.h>
 #include <net/neighbour.h>
 #include <net/netevent.h>
+#include <linux/etherdevice.h>
+#include <linux/if_vlan.h>
 #include <linux/inetdevice.h>
 #include <linux/rhashtable.h>
 #include <linux/of_net.h>
@@ -269,7 +271,7 @@ int write_phy(u32 port, u32 page, u32 reg, u32 val)
 static int __init rtl83xx_mdio_probe(struct rtl838x_switch_priv *priv)
 {
 	struct device *dev = priv->dev;
-	struct device_node *dn, *phy_node, *mii_np = dev->of_node;
+	struct device_node *dn, *phy_node, *led_node, *mii_np = dev->of_node;
 	struct mii_bus *bus;
 	int ret;
 	u32 pn;
@@ -323,9 +325,12 @@ static int __init rtl83xx_mdio_probe(struct rtl838x_switch_priv *priv)
 		return -ENODEV;
 	}
 
+	led_node = of_find_compatible_node(NULL, NULL, "realtek,rtl9300-leds");
+
 	for_each_node_by_name(dn, "port") {
 		phy_interface_t interface;
 		u32 led_set;
+		char led_set_str[16] = {0};
 
 		if (!of_device_is_available(dn))
 			continue;
@@ -353,9 +358,18 @@ static int __init rtl83xx_mdio_probe(struct rtl838x_switch_priv *priv)
 		if (interface == PHY_INTERFACE_MODE_10GBASER)
 			priv->ports[pn].is10G = true;
 
-		if (of_property_read_u32(dn, "led-set", &led_set))
-			led_set = 0;
-		priv->ports[pn].led_set = led_set;
+		priv->ports[pn].leds_on_this_port = 0;
+		if (led_node) {
+			if (of_property_read_u32(dn, "led-set", &led_set))
+				led_set = 0;
+			priv->ports[pn].led_set = led_set;
+			sprintf(led_set_str, "led_set%d", led_set);
+			priv->ports[pn].leds_on_this_port = of_property_count_u32_elems(led_node, led_set_str);
+			if (priv->ports[pn].leds_on_this_port > 4) {
+				dev_err(priv->dev, "led_set %d for port %d configuration is invalid\n", led_set, pn);
+				return -ENODEV;
+			}
+		}
 
 		/* Check for the integrated SerDes of the RTL8380M first */
 		if (of_property_read_bool(phy_node, "phy-is-integrated")
@@ -527,24 +541,25 @@ int rtl83xx_lag_del(struct dsa_switch *ds, int group, int port)
 	return 0;
 }
 
-/* Allocate a 64 bit octet counter located in the LOG HW table */
-static int rtl83xx_octet_cntr_alloc(struct rtl838x_switch_priv *priv)
-{
-	int idx;
+// Currently Unused
+// /* Allocate a 64 bit octet counter located in the LOG HW table */
+// static int rtl83xx_octet_cntr_alloc(struct rtl838x_switch_priv *priv)
+// {
+// 	int idx;
 
-	mutex_lock(&priv->reg_mutex);
+// 	mutex_lock(&priv->reg_mutex);
 
-	idx = find_first_zero_bit(priv->octet_cntr_use_bm, MAX_COUNTERS);
-	if (idx >= priv->n_counters) {
-		mutex_unlock(&priv->reg_mutex);
-		return -1;
-	}
+// 	idx = find_first_zero_bit(priv->octet_cntr_use_bm, MAX_COUNTERS);
+// 	if (idx >= priv->n_counters) {
+// 		mutex_unlock(&priv->reg_mutex);
+// 		return -1;
+// 	}
 
-	set_bit(idx, priv->octet_cntr_use_bm);
-	mutex_unlock(&priv->reg_mutex);
+// 	set_bit(idx, priv->octet_cntr_use_bm);
+// 	mutex_unlock(&priv->reg_mutex);
 
-	return idx;
-}
+// 	return idx;
+// }
 
 /* Allocate a 32-bit packet counter
  * 2 32-bit packet counters share the location of a 64-bit octet counter
@@ -1427,7 +1442,7 @@ static int rtl83xx_fib_event(struct notifier_block *this, unsigned long event, v
 			fib_info_hold(fib_work->fen_info.fi);
 
 		} else if (info->family == AF_INET6) {
-			struct fib6_entry_notifier_info *fen6_info = ptr;
+			//struct fib6_entry_notifier_info *fen6_info = ptr;
 			pr_warn("%s: FIB_RULE ADD/DEL for IPv6 not supported\n", __func__);
 			kfree(fib_work);
 			return NOTIFY_DONE;

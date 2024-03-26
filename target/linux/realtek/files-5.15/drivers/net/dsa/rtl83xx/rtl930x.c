@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 #include <asm/mach-rtl838x/mach-rtl83xx.h>
+#include <linux/etherdevice.h>
 #include <linux/inetdevice.h>
 
 #include "rtl83xx.h"
@@ -22,6 +23,15 @@
 #define RTL930X_VLAN_PORT_TAG_STS_CTRL_IGR_P_ITAG_KEEP_MASK	GENMASK(0,0)
 
 #define RTL930X_LED_GLB_ACTIVE_LOW				BIT(22)
+
+#define RTL930X_LED_SETX_0_CTRL(x) (RTL930X_LED_SET0_0_CTRL - (x * 8))
+#define RTL930X_LED_SETX_1_CTRL(x) (RTL930X_LED_SETX_0_CTRL(x) - 4)
+
+/* get register for given set and led in the set */
+#define RTL930X_LED_SETX_LEDY(x,y) (RTL930X_LED_SETX_0_CTRL(x) - 4 * (y / 2))
+
+/* get shift for given led in any set */
+#define RTL930X_LED_SET_LEDX_SHIFT(x) (16 * (x % 2))
 
 extern struct mutex smi_lock;
 extern struct rtl83xx_soc_info soc_info;
@@ -248,9 +258,9 @@ static void rtl930x_vlan_fwd_on_inner(int port, bool is_set)
 {
 	/* Always set all tag modes to fwd based on either inner or outer tag */
 	if (is_set)
-		sw_w32_mask(0, 0xf, RTL930X_VLAN_PORT_FWD + (port << 2));
-	else
 		sw_w32_mask(0xf, 0, RTL930X_VLAN_PORT_FWD + (port << 2));
+	else
+		sw_w32_mask(0, 0xf, RTL930X_VLAN_PORT_FWD + (port << 2));
 }
 
 static void rtl930x_vlan_profile_setup(int profile)
@@ -992,57 +1002,58 @@ static u32 rtl930x_l3_hash4(u32 ip, int algorithm, bool move_dip)
 	return hash;
 }
 
-static u32 rtl930x_l3_hash6(struct in6_addr *ip6, int algorithm, bool move_dip)
-{
-	u32 rows[16];
-	u32 hash;
-	u32 s0, s1, pH;
+// Currently not used
+// static u32 rtl930x_l3_hash6(struct in6_addr *ip6, int algorithm, bool move_dip)
+// {
+// 	u32 rows[16];
+// 	u32 hash;
+// 	u32 s0, s1, pH;
 
-	rows[0] = (HASH_PICK(ip6->s6_addr[0], 6, 2) << 0);
-	rows[1] = (HASH_PICK(ip6->s6_addr[0], 0, 6) << 3) | HASH_PICK(ip6->s6_addr[1], 5, 3);
-	rows[2] = (HASH_PICK(ip6->s6_addr[1], 0, 5) << 4) | HASH_PICK(ip6->s6_addr[2], 4, 4);
-	rows[3] = (HASH_PICK(ip6->s6_addr[2], 0, 4) << 5) | HASH_PICK(ip6->s6_addr[3], 3, 5);
-	rows[4] = (HASH_PICK(ip6->s6_addr[3], 0, 3) << 6) | HASH_PICK(ip6->s6_addr[4], 2, 6);
-	rows[5] = (HASH_PICK(ip6->s6_addr[4], 0, 2) << 7) | HASH_PICK(ip6->s6_addr[5], 1, 7);
-	rows[6] = (HASH_PICK(ip6->s6_addr[5], 0, 1) << 8) | HASH_PICK(ip6->s6_addr[6], 0, 8);
-	rows[7] = (HASH_PICK(ip6->s6_addr[7], 0, 8) << 1) | HASH_PICK(ip6->s6_addr[8], 7, 1);
-	rows[8] = (HASH_PICK(ip6->s6_addr[8], 0, 7) << 2) | HASH_PICK(ip6->s6_addr[9], 6, 2);
-	rows[9] = (HASH_PICK(ip6->s6_addr[9], 0, 6) << 3) | HASH_PICK(ip6->s6_addr[10], 5, 3);
-	rows[10] = (HASH_PICK(ip6->s6_addr[10], 0, 5) << 4) | HASH_PICK(ip6->s6_addr[11], 4, 4);
-	if (!algorithm) {
-		rows[11] = (HASH_PICK(ip6->s6_addr[11], 0, 4) << 5) |
-		           (HASH_PICK(ip6->s6_addr[12], 3, 5) << 0);
-		rows[12] = (HASH_PICK(ip6->s6_addr[12], 0, 3) << 6) |
-		           (HASH_PICK(ip6->s6_addr[13], 2, 6) << 0);
-		rows[13] = (HASH_PICK(ip6->s6_addr[13], 0, 2) << 7) |
-		           (HASH_PICK(ip6->s6_addr[14], 1, 7) << 0);
-		if (!move_dip) {
-			rows[14] = (HASH_PICK(ip6->s6_addr[14], 0, 1) << 8) |
-			           (HASH_PICK(ip6->s6_addr[15], 0, 8) << 0);
-		}
-		hash = rows[0] ^ rows[1] ^ rows[2] ^ rows[3] ^ rows[4] ^
-		       rows[5] ^ rows[6] ^ rows[7] ^ rows[8] ^ rows[9] ^
-		       rows[10] ^ rows[11] ^ rows[12] ^ rows[13] ^ rows[14];
-	} else {
-		rows[11] = (HASH_PICK(ip6->s6_addr[11], 0, 4) << 5);
-		rows[12] = (HASH_PICK(ip6->s6_addr[12], 3, 5) << 0);
-		rows[13] = (HASH_PICK(ip6->s6_addr[12], 0, 3) << 6) |
-		           HASH_PICK(ip6->s6_addr[13], 2, 6);
-		rows[14] = (HASH_PICK(ip6->s6_addr[13], 0, 2) << 7) |
-		           HASH_PICK(ip6->s6_addr[14], 1, 7);
-		if (!move_dip) {
-			rows[15] = (HASH_PICK(ip6->s6_addr[14], 0, 1) << 8) |
-			           (HASH_PICK(ip6->s6_addr[15], 0, 8) << 0);
-		}
-		s0 = rows[12] + rows[13] + rows[14];
-		s1 = (s0 & 0x1ff) + ((s0 & (0x1ff << 9)) >> 9);
-		pH = (s1 & 0x1ff) + ((s1 & (0x1ff << 9)) >> 9);
-		hash = rows[0] ^ rows[1] ^ rows[2] ^ rows[3] ^ rows[4] ^
-		       rows[5] ^ rows[6] ^ rows[7] ^ rows[8] ^ rows[9] ^
-		       rows[10] ^ rows[11] ^ pH ^ rows[15];
-	}
-	return hash;
-}
+// 	rows[0] = (HASH_PICK(ip6->s6_addr[0], 6, 2) << 0);
+// 	rows[1] = (HASH_PICK(ip6->s6_addr[0], 0, 6) << 3) | HASH_PICK(ip6->s6_addr[1], 5, 3);
+// 	rows[2] = (HASH_PICK(ip6->s6_addr[1], 0, 5) << 4) | HASH_PICK(ip6->s6_addr[2], 4, 4);
+// 	rows[3] = (HASH_PICK(ip6->s6_addr[2], 0, 4) << 5) | HASH_PICK(ip6->s6_addr[3], 3, 5);
+// 	rows[4] = (HASH_PICK(ip6->s6_addr[3], 0, 3) << 6) | HASH_PICK(ip6->s6_addr[4], 2, 6);
+// 	rows[5] = (HASH_PICK(ip6->s6_addr[4], 0, 2) << 7) | HASH_PICK(ip6->s6_addr[5], 1, 7);
+// 	rows[6] = (HASH_PICK(ip6->s6_addr[5], 0, 1) << 8) | HASH_PICK(ip6->s6_addr[6], 0, 8);
+// 	rows[7] = (HASH_PICK(ip6->s6_addr[7], 0, 8) << 1) | HASH_PICK(ip6->s6_addr[8], 7, 1);
+// 	rows[8] = (HASH_PICK(ip6->s6_addr[8], 0, 7) << 2) | HASH_PICK(ip6->s6_addr[9], 6, 2);
+// 	rows[9] = (HASH_PICK(ip6->s6_addr[9], 0, 6) << 3) | HASH_PICK(ip6->s6_addr[10], 5, 3);
+// 	rows[10] = (HASH_PICK(ip6->s6_addr[10], 0, 5) << 4) | HASH_PICK(ip6->s6_addr[11], 4, 4);
+// 	if (!algorithm) {
+// 		rows[11] = (HASH_PICK(ip6->s6_addr[11], 0, 4) << 5) |
+// 		           (HASH_PICK(ip6->s6_addr[12], 3, 5) << 0);
+// 		rows[12] = (HASH_PICK(ip6->s6_addr[12], 0, 3) << 6) |
+// 		           (HASH_PICK(ip6->s6_addr[13], 2, 6) << 0);
+// 		rows[13] = (HASH_PICK(ip6->s6_addr[13], 0, 2) << 7) |
+// 		           (HASH_PICK(ip6->s6_addr[14], 1, 7) << 0);
+// 		if (!move_dip) {
+// 			rows[14] = (HASH_PICK(ip6->s6_addr[14], 0, 1) << 8) |
+// 			           (HASH_PICK(ip6->s6_addr[15], 0, 8) << 0);
+// 		}
+// 		hash = rows[0] ^ rows[1] ^ rows[2] ^ rows[3] ^ rows[4] ^
+// 		       rows[5] ^ rows[6] ^ rows[7] ^ rows[8] ^ rows[9] ^
+// 		       rows[10] ^ rows[11] ^ rows[12] ^ rows[13] ^ rows[14];
+// 	} else {
+// 		rows[11] = (HASH_PICK(ip6->s6_addr[11], 0, 4) << 5);
+// 		rows[12] = (HASH_PICK(ip6->s6_addr[12], 3, 5) << 0);
+// 		rows[13] = (HASH_PICK(ip6->s6_addr[12], 0, 3) << 6) |
+// 		           HASH_PICK(ip6->s6_addr[13], 2, 6);
+// 		rows[14] = (HASH_PICK(ip6->s6_addr[13], 0, 2) << 7) |
+// 		           HASH_PICK(ip6->s6_addr[14], 1, 7);
+// 		if (!move_dip) {
+// 			rows[15] = (HASH_PICK(ip6->s6_addr[14], 0, 1) << 8) |
+// 			           (HASH_PICK(ip6->s6_addr[15], 0, 8) << 0);
+// 		}
+// 		s0 = rows[12] + rows[13] + rows[14];
+// 		s1 = (s0 & 0x1ff) + ((s0 & (0x1ff << 9)) >> 9);
+// 		pH = (s1 & 0x1ff) + ((s1 & (0x1ff << 9)) >> 9);
+// 		hash = rows[0] ^ rows[1] ^ rows[2] ^ rows[3] ^ rows[4] ^
+// 		       rows[5] ^ rows[6] ^ rows[7] ^ rows[8] ^ rows[9] ^
+// 		       rows[10] ^ rows[11] ^ pH ^ rows[15];
+// 	}
+// 	return hash;
+// }
 
 /* Read a prefix route entry from the L3_PREFIX_ROUTE_IPUC table
  * We currently only support IPv4 and IPv6 unicast route
@@ -1411,85 +1422,89 @@ static void rtl930x_get_l3_nexthop(int idx, u16 *dmac_id, u16 *interface)
 	*interface = v & 0x7f;
 }
 
-static int rtl930x_l3_mtu_del(struct rtl838x_switch_priv *priv, int mtu)
-{
-	int i;
+// Currently not used
+// static int rtl930x_l3_mtu_del(struct rtl838x_switch_priv *priv, int mtu)
+// {
+// 	int i;
 
-	for (i = 0; i < MAX_INTF_MTUS; i++) {
-		if (mtu == priv->intf_mtus[i])
-			break;
-	}
-	if (i >= MAX_INTF_MTUS || !priv->intf_mtu_count[i]) {
-		pr_err("%s: No MTU slot found for MTU: %d\n", __func__, mtu);
-		return -EINVAL;
-	}
+// 	for (i = 0; i < MAX_INTF_MTUS; i++) {
+// 		if (mtu == priv->intf_mtus[i])
+// 			break;
+// 	}
+// 	if (i >= MAX_INTF_MTUS || !priv->intf_mtu_count[i]) {
+// 		pr_err("%s: No MTU slot found for MTU: %d\n", __func__, mtu);
+// 		return -EINVAL;
+// 	}
 
-	priv->intf_mtu_count[i]--;
-}
+// 	priv->intf_mtu_count[i]--;
+// }
 
-static int rtl930x_l3_mtu_add(struct rtl838x_switch_priv *priv, int mtu)
-{
-	int i, free_mtu;
-	int mtu_id;
+// Currently not used
+// static int rtl930x_l3_mtu_add(struct rtl838x_switch_priv *priv, int mtu)
+// {
+// 	int i, free_mtu;
+// 	int mtu_id;
 
-	/* Try to find an existing mtu-value or a free slot */
-	free_mtu = MAX_INTF_MTUS;
-	for (i = 0; i < MAX_INTF_MTUS && priv->intf_mtus[i] != mtu; i++) {
-		if ((!priv->intf_mtu_count[i]) && (free_mtu == MAX_INTF_MTUS))
-			free_mtu = i;
-	}
-	i = (i < MAX_INTF_MTUS) ? i : free_mtu;
-	if (i < MAX_INTF_MTUS) {
-		mtu_id = i;
-	} else {
-		pr_err("%s: No free MTU slot available!\n", __func__);
-		return -EINVAL;
-	}
+// 	/* Try to find an existing mtu-value or a free slot */
+// 	free_mtu = MAX_INTF_MTUS;
+// 	for (i = 0; i < MAX_INTF_MTUS && priv->intf_mtus[i] != mtu; i++) {
+// 		if ((!priv->intf_mtu_count[i]) && (free_mtu == MAX_INTF_MTUS))
+// 			free_mtu = i;
+// 	}
+// 	i = (i < MAX_INTF_MTUS) ? i : free_mtu;
+// 	if (i < MAX_INTF_MTUS) {
+// 		mtu_id = i;
+// 	} else {
+// 		pr_err("%s: No free MTU slot available!\n", __func__);
+// 		return -EINVAL;
+// 	}
 
-	priv->intf_mtus[i] = mtu;
-	pr_info("Writing MTU %d to slot %d\n", priv->intf_mtus[i], i);
-	/* Set MTU-value of the slot TODO: distinguish between IPv4/IPv6 routes / slots */
-	sw_w32_mask(0xffff << ((i % 2) * 16), priv->intf_mtus[i] << ((i % 2) * 16),
-		    RTL930X_L3_IP_MTU_CTRL(i));
-	sw_w32_mask(0xffff << ((i % 2) * 16), priv->intf_mtus[i] << ((i % 2) * 16),
-		    RTL930X_L3_IP6_MTU_CTRL(i));
+// 	priv->intf_mtus[i] = mtu;
+// 	pr_info("Writing MTU %d to slot %d\n", priv->intf_mtus[i], i);
+// 	/* Set MTU-value of the slot TODO: distinguish between IPv4/IPv6 routes / slots */
+// 	sw_w32_mask(0xffff << ((i % 2) * 16), priv->intf_mtus[i] << ((i % 2) * 16),
+// 		    RTL930X_L3_IP_MTU_CTRL(i));
+// 	sw_w32_mask(0xffff << ((i % 2) * 16), priv->intf_mtus[i] << ((i % 2) * 16),
+// 		    RTL930X_L3_IP6_MTU_CTRL(i));
 
-	priv->intf_mtu_count[i]++;
+// 	priv->intf_mtu_count[i]++;
 
-	return mtu_id;
-}
+// 	return mtu_id;
+// }
 
-/* Creates an interface for a route by setting up the HW tables in the SoC */
-static int rtl930x_l3_intf_add(struct rtl838x_switch_priv *priv, struct rtl838x_l3_intf *intf)
-{
-	int i, intf_id, mtu_id;
-	/* number of MTU-values < 16384 */
 
-	/* Use the same IPv6 mtu as the ip4 mtu for this route if unset */
-	intf->ip6_mtu = intf->ip6_mtu ? intf->ip6_mtu : intf->ip4_mtu;
+// Currently not used
+// /* Creates an interface for a route by setting up the HW tables in the SoC
+// static int rtl930x_l3_intf_add(struct rtl838x_switch_priv *priv, struct rtl838x_l3_intf *intf)
+// {
+// 	int i, intf_id, mtu_id;
+// 	/* number of MTU-values < 16384 *\/
 
-	mtu_id = rtl930x_l3_mtu_add(priv, intf->ip4_mtu);
-	pr_info("%s: added mtu %d with mtu-id %d\n", __func__, intf->ip4_mtu, mtu_id);
-	if (mtu_id < 0)
-		return -ENOSPC;
-	intf->ip4_mtu_id = mtu_id;
-	intf->ip6_mtu_id = mtu_id;
+// 	/* Use the same IPv6 mtu as the ip4 mtu for this route if unset */
+// 	intf->ip6_mtu = intf->ip6_mtu ? intf->ip6_mtu : intf->ip4_mtu;
 
-	for (i = 0; i < MAX_INTERFACES; i++) {
-		if (!priv->interfaces[i])
-			break;
-	}
-	if (i >= MAX_INTERFACES) {
-		pr_err("%s: cannot find free interface entry\n", __func__);
-		return -EINVAL;
-	}
-	intf_id = i;
-	priv->interfaces[i] = kzalloc(sizeof(struct rtl838x_l3_intf), GFP_KERNEL);
-	if (!priv->interfaces[i]) {
-		pr_err("%s: no memory to allocate new interface\n", __func__);
-		return -ENOMEM;
-	}
-}
+// 	mtu_id = rtl930x_l3_mtu_add(priv, intf->ip4_mtu);
+// 	pr_info("%s: added mtu %d with mtu-id %d\n", __func__, intf->ip4_mtu, mtu_id);
+// 	if (mtu_id < 0)
+// 		return -ENOSPC;
+// 	intf->ip4_mtu_id = mtu_id;
+// 	intf->ip6_mtu_id = mtu_id;
+
+// 	for (i = 0; i < MAX_INTERFACES; i++) {
+// 		if (!priv->interfaces[i])
+// 			break;
+// 	}
+// 	if (i >= MAX_INTERFACES) {
+// 		pr_err("%s: cannot find free interface entry\n", __func__);
+// 		return -EINVAL;
+// 	}
+// 	intf_id = i;
+// 	priv->interfaces[i] = kzalloc(sizeof(struct rtl838x_l3_intf), GFP_KERNEL);
+// 	if (!priv->interfaces[i]) {
+// 		pr_err("%s: no memory to allocate new interface\n", __func__);
+// 		return -ENOMEM;
+// 	}
+// }
 
 /* Set the destination MAC and L3 egress interface ID for a nexthop entry in the SoC's
  * L3_NEXTHOP table. The nexthop entry is identified by idx.
@@ -1683,49 +1698,50 @@ static void rtl930x_write_pie_templated(u32 r[], struct pie_rule *pr, enum templ
 	}
 }
 
-static void rtl930x_read_pie_fixed_fields(u32 r[], struct pie_rule *pr)
-{
-	pr->stacking_port = r[6] & BIT(31);
-	pr->spn = (r[6] >> 24) & 0x7f;
-	pr->mgnt_vlan = r[6] & BIT(23);
-	if (pr->phase == PHASE_IACL)
-		pr->dmac_hit_sw = r[6] & BIT(22);
-	else
-		pr->content_too_deep = r[6] & BIT(22);
-	pr->not_first_frag = r[6]  & BIT(21);
-	pr->frame_type_l4 = (r[6] >> 18) & 7;
-	pr->frame_type = (r[6] >> 16) & 3;
-	pr->otag_fmt = (r[6] >> 15) & 1;
-	pr->itag_fmt = (r[6] >> 14) & 1;
-	pr->otag_exist = (r[6] >> 13) & 1;
-	pr->itag_exist = (r[6] >> 12) & 1;
-	pr->frame_type_l2 = (r[6] >> 10) & 3;
-	pr->igr_normal_port = (r[6] >> 9) & 1;
-	pr->tid = (r[6] >> 8) & 1;
+// Currently not used
+// static void rtl930x_read_pie_fixed_fields(u32 r[], struct pie_rule *pr)
+// {
+// 	pr->stacking_port = r[6] & BIT(31);
+// 	pr->spn = (r[6] >> 24) & 0x7f;
+// 	pr->mgnt_vlan = r[6] & BIT(23);
+// 	if (pr->phase == PHASE_IACL)
+// 		pr->dmac_hit_sw = r[6] & BIT(22);
+// 	else
+// 		pr->content_too_deep = r[6] & BIT(22);
+// 	pr->not_first_frag = r[6]  & BIT(21);
+// 	pr->frame_type_l4 = (r[6] >> 18) & 7;
+// 	pr->frame_type = (r[6] >> 16) & 3;
+// 	pr->otag_fmt = (r[6] >> 15) & 1;
+// 	pr->itag_fmt = (r[6] >> 14) & 1;
+// 	pr->otag_exist = (r[6] >> 13) & 1;
+// 	pr->itag_exist = (r[6] >> 12) & 1;
+// 	pr->frame_type_l2 = (r[6] >> 10) & 3;
+// 	pr->igr_normal_port = (r[6] >> 9) & 1;
+// 	pr->tid = (r[6] >> 8) & 1;
 
-	pr->stacking_port_m = r[12] & BIT(7);
-	pr->spn_m = r[12]  & 0x7f;
-	pr->mgnt_vlan_m = r[13] & BIT(31);
-	if (pr->phase == PHASE_IACL)
-		pr->dmac_hit_sw_m = r[13] & BIT(30);
-	else
-		pr->content_too_deep_m = r[13] & BIT(30);
-	pr->not_first_frag_m = r[13] & BIT(29);
-	pr->frame_type_l4_m = (r[13] >> 26) & 7;
-	pr->frame_type_m = (r[13] >> 24) & 3;
-	pr->otag_fmt_m = r[13] & BIT(23);
-	pr->itag_fmt_m = r[13] & BIT(22);
-	pr->otag_exist_m = r[13] & BIT(21);
-	pr->itag_exist_m = r[13] & BIT (20);
-	pr->frame_type_l2_m = (r[13] >> 18) & 3;
-	pr->igr_normal_port_m = r[13] & BIT(17);
-	pr->tid_m = (r[13] >> 16) & 1;
+// 	pr->stacking_port_m = r[12] & BIT(7);
+// 	pr->spn_m = r[12]  & 0x7f;
+// 	pr->mgnt_vlan_m = r[13] & BIT(31);
+// 	if (pr->phase == PHASE_IACL)
+// 		pr->dmac_hit_sw_m = r[13] & BIT(30);
+// 	else
+// 		pr->content_too_deep_m = r[13] & BIT(30);
+// 	pr->not_first_frag_m = r[13] & BIT(29);
+// 	pr->frame_type_l4_m = (r[13] >> 26) & 7;
+// 	pr->frame_type_m = (r[13] >> 24) & 3;
+// 	pr->otag_fmt_m = r[13] & BIT(23);
+// 	pr->itag_fmt_m = r[13] & BIT(22);
+// 	pr->otag_exist_m = r[13] & BIT(21);
+// 	pr->itag_exist_m = r[13] & BIT (20);
+// 	pr->frame_type_l2_m = (r[13] >> 18) & 3;
+// 	pr->igr_normal_port_m = r[13] & BIT(17);
+// 	pr->tid_m = (r[13] >> 16) & 1;
 
-	pr->valid = r[13] & BIT(15);
-	pr->cond_not = r[13] & BIT(14);
-	pr->cond_and1 = r[13] & BIT(13);
-	pr->cond_and2 = r[13] & BIT(12);
-}
+// 	pr->valid = r[13] & BIT(15);
+// 	pr->cond_not = r[13] & BIT(14);
+// 	pr->cond_and1 = r[13] & BIT(13);
+// 	pr->cond_and2 = r[13] & BIT(12);
+// }
 
 static void rtl930x_write_pie_fixed_fields(u32 r[],  struct pie_rule *pr)
 {
@@ -2389,10 +2405,44 @@ static void rtl930x_led_init(struct rtl838x_switch_priv *priv)
 		return;
 	}
 
+	for (int set = 0; set < 4; set++) {
+		char set_name[16] = {0};
+		u32 set_config[4];
+		int leds_in_this_set = 0;
+
+		/* Reset LED set configuration */
+		sw_w32(0, RTL930X_LED_SETX_0_CTRL(set));
+		sw_w32(0, RTL930X_LED_SETX_1_CTRL(set));
+
+		/**
+		 * Each led set has 4 number of leds, and each LED is configured with 16 bits
+		 * So each 32bit register holds configuration for 2 leds
+		 * And therefore each set requires 2 registers for configuring 4 LEDs
+		 *
+		*/
+		sprintf(set_name, "led_set%d", set);
+		leds_in_this_set = of_property_count_u32_elems(node, set_name);
+
+		if (leds_in_this_set == 0 || leds_in_this_set > sizeof(set_config)) {
+			pr_err("%s led_set configuration invalid skipping over this set\n", __func__);
+			continue;
+		}
+
+		if (of_property_read_u32_array(node, set_name, set_config, leds_in_this_set)) {
+			break;
+		}
+
+		/* Write configuration as per number of LEDs */
+		for (int i=0, led = leds_in_this_set-1; led >= 0; led--,i++) {
+			sw_w32_mask(0xffff << RTL930X_LED_SET_LEDX_SHIFT(led),
+						(0xffff & set_config[i]) << RTL930X_LED_SET_LEDX_SHIFT(led),
+						RTL930X_LED_SETX_LEDY(set, led));
+		}
+	}
+
 	for (int i = 0; i < priv->cpu_port; i++) {
 		int pos = (i << 1) % 32;
 		u32 set;
-		u32 v;
 
 		sw_w32_mask(0x3 << pos, 0, RTL930X_LED_PORT_FIB_SET_SEL_CTRL(i));
 		sw_w32_mask(0x3 << pos, 0, RTL930X_LED_PORT_COPR_SET_SEL_CTRL(i));
@@ -2400,34 +2450,14 @@ static void rtl930x_led_init(struct rtl838x_switch_priv *priv)
 		if (!priv->ports[i].phy)
 			continue;
 
-		v = 0x1;
-		if (priv->ports[i].is10G)
-			v = 0x3;
-		if (priv->ports[i].phy_is_integrated)
-			v = 0x1;
-		sw_w32_mask(0x3 << pos, v << pos, RTL930X_LED_PORT_NUM_CTRL(i));
+		/* 0x0 = 1 led, 0x1 = 2 leds, 0x2 = 3 leds, 0x3 = 4 leds per port */
+		sw_w32_mask(0x3 << pos, (priv->ports[i].leds_on_this_port -1) << pos, RTL930X_LED_PORT_NUM_CTRL(i));
 
 		pm |= BIT(i);
 
 		set = priv->ports[i].led_set;
 		sw_w32_mask(0, set << pos, RTL930X_LED_PORT_COPR_SET_SEL_CTRL(i));
 		sw_w32_mask(0, set << pos, RTL930X_LED_PORT_FIB_SET_SEL_CTRL(i));
-	}
-
-	for (int i = 0; i < 4; i++) {
-		const __be32 *led_set;
-		char set_name[9];
-		u32 setlen;
-		u32 v;
-
-		sprintf(set_name, "led_set%d", i);
-		led_set = of_get_property(node, set_name, &setlen);
-		if (!led_set || setlen != 16)
-			break;
-		v = be32_to_cpup(led_set) << 16 | be32_to_cpup(led_set + 1);
-		sw_w32(v, RTL930X_LED_SET0_0_CTRL - 4 - i * 8);
-		v = be32_to_cpup(led_set + 2) << 16 | be32_to_cpup(led_set + 3);
-		sw_w32(v, RTL930X_LED_SET0_0_CTRL - i * 8);
 	}
 
 	/* Set LED mode to serial (0x1) */

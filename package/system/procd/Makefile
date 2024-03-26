@@ -12,9 +12,9 @@ PKG_RELEASE:=1
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL=$(PROJECT_GIT)/project/procd.git
-PKG_MIRROR_HASH:=75a92c01ef85f41dc7e0b77ac35f464fbe45942af02ca6847516c4ebf574c4a4
-PKG_SOURCE_DATE:=2023-01-16
-PKG_SOURCE_VERSION:=190f13a75e67e0bdb662188da79b8be31e0aae01
+PKG_MIRROR_HASH:=b324cca5b9870c73f3b1c21547ca061acef6e7acb2488244c2f5be129d3a2e6c
+PKG_SOURCE_DATE:=2024-03-25
+PKG_SOURCE_VERSION:=ca8c30208d5e1aaa2c0e3f732c4c9944735e9850
 CMAKE_INSTALL:=1
 
 PKG_LICENSE:=GPL-2.0
@@ -22,6 +22,7 @@ PKG_LICENSE_FILES:=
 
 PKG_MAINTAINER:=John Crispin <john@phrozen.org>
 
+PKG_BUILD_FLAGS:=lto
 PKG_ASLR_PIE_REGULAR:=1
 PKG_CONFIG_DEPENDS:= \
 	CONFIG_TARGET_INIT_PATH CONFIG_KERNEL_SECCOMP CONFIG_PROCD_SHOW_BOOT \
@@ -36,13 +37,10 @@ endif
 
 CMAKE_OPTIONS += -DEARLY_PATH="$(TARGET_INIT_PATH)"
 
-TARGET_CFLAGS += -flto
-TARGET_LDFLAGS += -flto
-
 define Package/procd/Default
   SECTION:=base
   CATEGORY:=Base system
-  DEPENDS:=+ubusd +ubus +libjson-script +ubox +libubox \
+  DEPENDS:=+ubusd +ubus +libjson-script +ubox +libubox +libudebug \
 	  +libubus +libblobmsg-json +libjson-c +jshn
   TITLE:=OpenWrt system process manager
   USERID:=:dialout=20 :audio=29

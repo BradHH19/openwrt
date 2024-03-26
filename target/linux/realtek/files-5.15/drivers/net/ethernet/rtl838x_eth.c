@@ -43,6 +43,9 @@ extern struct rtl83xx_soc_info soc_info;
 #define RX_EN		0x4
 #define TX_EN_93XX	0x20
 #define RX_EN_93XX	0x10
+#define RX_TRUNCATE_EN_93XX BIT(6)
+#define RX_TRUNCATE_EN_83XX BIT(4)
+#define TX_PAD_EN_838X BIT(5)
 #define TX_DO		0x2
 #define WRAP		0x2
 #define MAX_PORTS	57
@@ -161,12 +164,13 @@ static void rtl931x_create_tx_header(struct p_hdr *h, unsigned int dest_port, in
 		h->cpu_tag[2] = (BIT(5) | (prio & 0x1f)) << 8;
 }
 
-static void rtl93xx_header_vlan_set(struct p_hdr *h, int vlan)
-{
-	h->cpu_tag[2] |= BIT(4); /* Enable VLAN forwarding offload */
-	h->cpu_tag[2] |= (vlan >> 8) & 0xf;
-	h->cpu_tag[3] |= (vlan & 0xff) << 8;
-}
+// Currently unused
+// static void rtl93xx_header_vlan_set(struct p_hdr *h, int vlan)
+// {
+// 	h->cpu_tag[2] |= BIT(4); /* Enable VLAN forwarding offload */
+// 	h->cpu_tag[2] |= (vlan >> 8) & 0xf;
+// 	h->cpu_tag[3] |= (vlan & 0xff) << 8;
+// }
 
 struct rtl838x_rx_q {
 	int id;
@@ -726,8 +730,8 @@ static void rtl838x_hw_en_rxtx(struct rtl838x_eth_priv *priv)
 	/* Disable Head of Line features for all RX rings */
 	sw_w32(0xffffffff, priv->r->dma_if_rx_ring_size(0));
 
-	/* Truncate RX buffer to 0x640 (1600) bytes, pad TX */
-	sw_w32(0x06400020, priv->r->dma_if_ctrl);
+	/* Truncate RX buffer to DEFAULT_MTU bytes, pad TX */
+	sw_w32((DEFAULT_MTU << 16) | RX_TRUNCATE_EN_83XX | TX_PAD_EN_838X, priv->r->dma_if_ctrl);
 
 	/* Enable RX done, RX overflow and TX done interrupts */
 	sw_w32(0xfffff, priv->r->dma_if_intr_msk);
@@ -751,7 +755,7 @@ static void rtl838x_hw_en_rxtx(struct rtl838x_eth_priv *priv)
 static void rtl839x_hw_en_rxtx(struct rtl838x_eth_priv *priv)
 {
 	/* Setup CPU-Port: RX Buffer */
-	sw_w32(0x0000c808, priv->r->dma_if_ctrl);
+	sw_w32((DEFAULT_MTU << 5) | RX_TRUNCATE_EN_83XX, priv->r->dma_if_ctrl);
 
 	/* Enable Notify, RX done, RX overflow and TX done interrupts */
 	sw_w32(0x007fffff, priv->r->dma_if_intr_msk); /* Notify IRQ! */
@@ -774,8 +778,8 @@ static void rtl839x_hw_en_rxtx(struct rtl838x_eth_priv *priv)
 
 static void rtl93xx_hw_en_rxtx(struct rtl838x_eth_priv *priv)
 {
-	/* Setup CPU-Port: RX Buffer truncated at 1600 Bytes */
-	sw_w32(0x06400040, priv->r->dma_if_ctrl);
+	/* Setup CPU-Port: RX Buffer truncated at DEFAULT_MTU Bytes */
+	sw_w32((DEFAULT_MTU << 16) | RX_TRUNCATE_EN_93XX, priv->r->dma_if_ctrl);
 
 	for (int i = 0; i < priv->rxrings; i++) {
 		int pos = (i % 3) * 10;
@@ -1556,7 +1560,7 @@ static int rtl838x_set_mac_address(struct net_device *dev, void *p)
 	if (!is_valid_ether_addr(addr->sa_data))
 		return -EADDRNOTAVAIL;
 
-	memcpy(dev->dev_addr, addr->sa_data, ETH_ALEN);
+	dev_addr_set(dev, addr->sa_data);
 	rtl838x_set_mac_hw(dev, mac);
 
 	pr_info("Using MAC %08x%08x\n", sw_r32(priv->r->mac), sw_r32(priv->r->mac + 4));
@@ -1957,7 +1961,7 @@ static int rtl930x_mdio_reset(struct mii_bus *bus)
 			break;			/* Serdes: Value = 0 */
 		case PHY_INTERFACE_MODE_HSGMII:
 			private_poll_mask |= BIT(i);
-			/* fallthrough */
+			fallthrough;
 		case PHY_INTERFACE_MODE_USXGMII:
 			v |= BIT(mac_type_bit[i]);
 			uses_usxgmii = true;
@@ -2351,6 +2355,7 @@ static int __init rtl838x_eth_probe(struct platform_device *pdev)
 	struct resource *res, *mem;
 	phy_interface_t phy_mode;
 	struct phylink *phylink;
+	u8 mac_addr[ETH_ALEN];
 	int err = 0, rxrings, rxringlen;
 	struct ring_b *ring;
 
@@ -2413,7 +2418,7 @@ static int __init rtl838x_eth_probe(struct platform_device *pdev)
 
 	dev->ethtool_ops = &rtl838x_ethtool_ops;
 	dev->min_mtu = ETH_ZLEN;
-	dev->max_mtu = 1536;
+	dev->max_mtu = DEFAULT_MTU;
 	dev->features = NETIF_F_RXCSUM | NETIF_F_HW_CSUM;
 	dev->hw_features = NETIF_F_RXCSUM;
 
@@ -2477,17 +2482,18 @@ static int __init rtl838x_eth_probe(struct platform_device *pdev)
 	 * 1) from device tree data
 	 * 2) from internal registers set by bootloader
 	 */
-	of_get_mac_address(pdev->dev.of_node, dev->dev_addr);
-	if (is_valid_ether_addr(dev->dev_addr)) {
-		rtl838x_set_mac_hw(dev, (u8 *)dev->dev_addr);
+	of_get_mac_address(pdev->dev.of_node, mac_addr);
+	if (is_valid_ether_addr(mac_addr)) {
+		rtl838x_set_mac_hw(dev, mac_addr);
 	} else {
-		dev->dev_addr[0] = (sw_r32(priv->r->mac) >> 8) & 0xff;
-		dev->dev_addr[1] = sw_r32(priv->r->mac) & 0xff;
-		dev->dev_addr[2] = (sw_r32(priv->r->mac + 4) >> 24) & 0xff;
-		dev->dev_addr[3] = (sw_r32(priv->r->mac + 4) >> 16) & 0xff;
-		dev->dev_addr[4] = (sw_r32(priv->r->mac + 4) >> 8) & 0xff;
-		dev->dev_addr[5] = sw_r32(priv->r->mac + 4) & 0xff;
+		mac_addr[0] = (sw_r32(priv->r->mac) >> 8) & 0xff;
+		mac_addr[1] = sw_r32(priv->r->mac) & 0xff;
+		mac_addr[2] = (sw_r32(priv->r->mac + 4) >> 24) & 0xff;
+		mac_addr[3] = (sw_r32(priv->r->mac + 4) >> 16) & 0xff;
+		mac_addr[4] = (sw_r32(priv->r->mac + 4) >> 8) & 0xff;
+		mac_addr[5] = sw_r32(priv->r->mac + 4) & 0xff;
 	}
+	dev_addr_set(dev, mac_addr);
 	/* if the address is invalid, use a random value */
 	if (!is_valid_ether_addr(dev->dev_addr)) {
 		struct sockaddr sa = { AF_UNSPEC };
